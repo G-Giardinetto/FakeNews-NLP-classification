@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sn
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 import datasetDownloader as dD
 import nltk
@@ -85,6 +85,24 @@ X=vectorizer.transform(X)
 print("\nDataframe's vectorized titles:")
 print(vectorizer.vocabulary_)
 print(X)
+
+### SPLIT DATAFRAME
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
+
+### REGRESSION
+lr = LogisticRegression()
+
+lr.fit(X_train, Y_train)
+Y_pred = lr.predict(X_test)
+
+### EVALUATING ACCURACY
+accuracy = accuracy_score(Y_pred, Y_test)
+
+print(classification_report(Y_test,Y_pred))
+
+### CONFUSION MATRIX
+sn.heatmap(confusion_matrix(Y_test,Y_pred),annot = True, cmap = 'Greens',fmt = '.1f')
+plt.show()
 
 
 end = time()
