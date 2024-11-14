@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sn
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
-
 import datasetDownloader as dD
 import nltk
 from nltk import SnowballStemmer
@@ -15,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from time import time
-DROP_ROWS=26000
+DROP_ROWS=0
 
 start = time()
 nltk.download('stopwords')
@@ -83,7 +82,6 @@ vectorizer.fit(X)
 
 X=vectorizer.transform(X)
 print("\nDataframe's vectorized titles:")
-print(vectorizer.vocabulary_)
 print(X)
 
 ### SPLIT DATAFRAME
