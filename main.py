@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sn
+from sklearn.metrics import accuracy_score
+
 import datasetDownloader as dD
 import nltk
 from nltk import SnowballStemmer
@@ -11,8 +13,9 @@ from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from time import time
-
+DROP_ROWS=26000
 
 start = time()
 nltk.download('stopwords')
@@ -41,16 +44,19 @@ df = pd.read_csv(path)
 
 #######Data cleaning
 print("Dataframe before drop")
-print(df.head())
+print(df.head(3))
 df.drop(columns=['Unnamed: 0'], axis=1, inplace=True)
 print("\nDataframe after drop")
-print(df.head())
+print(df.head(3))
 
 print("Dataframe rows: {}".format(df.shape[0]))
 print("\nDataframe's null elements:")
 print(df.isnull().sum())
 
 df.dropna(inplace=True)
+###### DROPPING DROP_ROWS ROWS
+df.drop(df.tail(DROP_ROWS).index, inplace=True)
+
 print("Dataframe rows: {}".format(df.shape[0]))
 print("\nDataframe's null values:")
 print(df.isnull().sum())
@@ -60,11 +66,26 @@ sn.countplot(x='label', hue='label',legend=False, data = df, palette= 'mako')
 plt.show()
 
 ####### Stemming
-#df['text'] = df['text'].apply(stem)
 df['title'] = df['title'].apply(stemm)
+df.drop(columns='text', inplace=True)
 
-print("\nDataframe's stemmed titles:\n"+df['title'].head())
-print("\nDataframe's stemmed texts:\n"+df['text'].head())
+print("\nDataframe's stemmed titles:")
+print(df['title'].head(3))
+
+## Data engineering
+X=df['title'].values
+Y=df['label'].values
+
+### Embedding
+
+vectorizer = TfidfVectorizer()
+vectorizer.fit(X)
+
+X=vectorizer.transform(X)
+print("\nDataframe's vectorized titles:")
+print(vectorizer.vocabulary_)
+print(X)
+
 
 end = time()
 print("Elapsed time {}".format(end-start))
