@@ -3,20 +3,22 @@ import re
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from nltk import SnowballStemmer
+import seaborn as sn
+import datasetDownloader as dD
 import nltk
+from nltk import SnowballStemmer
 from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
-import seaborn as sn
-import datasetDownloader as dD
+from time import time
 
 
+start = time()
 nltk.download('stopwords')
 stemmer = SnowballStemmer("english")
 
-def stem(string):
+def stemm(string):
     string = str(string)
     stemmed_string = string
     stemmed_string = stemmed_string.lower()
@@ -58,8 +60,11 @@ sn.countplot(x='label', hue='label',legend=False, data = df, palette= 'mako')
 plt.show()
 
 ####### Stemming
-df['text'] = df['text'].apply(stem)
-df['title'] = df['title'].apply(stem)
+#df['text'] = df['text'].apply(stem)
+df['title'] = df['title'].apply(stemm)
 
 print("\nDataframe's stemmed titles:\n"+df['title'].head())
 print("\nDataframe's stemmed texts:\n"+df['text'].head())
+
+end = time()
+print("Elapsed time {}".format(end-start))
