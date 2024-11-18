@@ -7,16 +7,33 @@ import seaborn as sn
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 import datasetDownloader as dD
 import nltk
-from nltk import SnowballStemmer
+import torch
 from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
 from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from time import time
-DROP_ROWS=0
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+
 
 start = time()
+DROP_ROWS=65000
+
+path="WELFake_Dataset.csv"
+
+model_name = 'bert-base-uncased'
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+modello = AutoModelForSequenceClassification.from_pretrained(model_name)  # For  
+modello.eval()
+if torch.cuda.is_available():
+    print("CUDA available")
+else:
+    print("CUDA not available")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+
 nltk.download('stopwords')
 stemmer = SnowballStemmer("english")
 
@@ -29,60 +46,89 @@ def stemm(string):
     stemmed_string = ' '.join(stemmed_string)
     return stemmed_string
 
+def create_windows(dataFrame, window_size, overlap):
+
+    finestre = []
+    wstart = 0
+    wend = window_size
+    while wend <= len(dataFrame):
+        window = dataFrame[wstart:wend]
+        finestre.append(window)
+        wstart += (window_size - overlap)
+        wend = wstart + window_size
+    return finestre
+
+def get_bert_embeddings(sentences):
+    encoded_inputs = tokenizer(sentences, padding='max_length', truncation=True, return_tensors='pt').to(device)
+    with torch.no_grad():
+        outputs = modello(**encoded_inputs)
+        embeddings = outputs.pooler_output
+    return embeddings.cpu().tolist()
 
 
-path="WELFake_Dataset.csv"
 
-if not os.path.exists(path):
-    print("File does not exist. Downloading")
-    dD.download()
+
+
+
+#######Data preprocessing
+if os.path.exists("Preprocessed.csv"):
+    print("Already exists preprocessed data. Loading.")
+    df = pd.read_csv("Preprocessed.csv")
 else:
-    print("File already downloaded")
+    print("Preprocessed data does not exist yet.")
+    if not os.path.exists(path):
+        print("File does not exist. Downloading")
+        dD.download()
+    else:
+        print("File already downloaded")
 
-df = pd.read_csv(path)
+    df = pd.read_csv(path)
+    print("Dataframe before drop")
+    print(df.head(3))
+    df.drop(columns=['Unnamed: 0'], axis=1, inplace=True)
+    print("\nDataframe after drop")
+    print(df.head(3))
 
-#######Data cleaning
-print("Dataframe before drop")
-print(df.head(3))
-df.drop(columns=['Unnamed: 0'], axis=1, inplace=True)
-print("\nDataframe after drop")
-print(df.head(3))
+    print("Dataframe rows: {}".format(df.shape[0]))
+    print("\nDataframe's null elements:")
+    print(df.isnull().sum())
 
-print("Dataframe rows: {}".format(df.shape[0]))
-print("\nDataframe's null elements:")
-print(df.isnull().sum())
+    df.dropna(inplace=True)
+    ###### DROPPING DROP_ROWS ROWS
+    df.drop(df.tail(DROP_ROWS).index, inplace=True)
 
-df.dropna(inplace=True)
-###### DROPPING DROP_ROWS ROWS
-df.drop(df.tail(DROP_ROWS).index, inplace=True)
+    print("Dataframe rows: {}".format(df.shape[0]))
+    print("\nDataframe's null values:")
+    print(df.isnull().sum())
 
-print("Dataframe rows: {}".format(df.shape[0]))
-print("\nDataframe's null values:")
-print(df.isnull().sum())
 
-### Plot results
+    ####### Stemming
+    df['title'] = df['title'].apply(stemm)
+    df.drop(columns='text', inplace=True)
+
+    print("\nDataframe's stemmed titles:")
+    print(df['title'].head(3))
+    df.to_csv("Preprocessed.csv", index=False)
+
+### Plot data
 sn.countplot(x='label', hue='label',legend=False, data = df, palette= 'mako')
 plt.show()
 
-####### Stemming
-df['title'] = df['title'].apply(stemm)
-df.drop(columns='text', inplace=True)
-
-print("\nDataframe's stemmed titles:")
-print(df['title'].head(3))
-
 ## Data engineering
-X=df['title'].values
+X=df['title']
 Y=df['label'].values
 
 ### Embedding
+all_windows = []
+for sentence in X:
+    windows = create_windows(sentence.split(), 512, 256)
+    all_windows.extend(windows)
+all_windows_str = [' '.join(window) for window in all_windows]
 
-vectorizer = TfidfVectorizer()
-vectorizer.fit(X)
+X = get_bert_embeddings(all_windows_str)
 
-X=vectorizer.transform(X)
-print("\nDataframe's vectorized titles:")
-print(X)
+print("\nDataframe's embeddings titles:")
+
 
 ### SPLIT DATAFRAME
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
