@@ -103,19 +103,26 @@ else:
 
 
     ####### Stemming
-    df['title'] = df['title'].apply(stemm)
-    df.drop(columns='text', inplace=True)
+    print("\nDo you want to delete the titles or texts? (1/2)")
+    if input() == '2':
+        df['title'] = df['title'].apply(stemm)
+        df.drop(columns='text', inplace=True)
+        choice="TextsDELETED"
+    else:
+        df['text'] = df['text'].apply(stemm)
+        df.drop(columns='title', inplace=True)
+        choice="TitlesDELETED"
 
     print("\nDataframe's stemmed titles:")
     print(df['title'].head(3))
-    df.to_csv("Preprocessed.csv", index=False)
+    df.to_csv("Preprocessed"+choice+".csv", index=False)
 
 ### Plot data
 sn.countplot(x='label', hue='label',legend=False, data = df, palette= 'mako')
 plt.show()
 
 ## Data engineering
-X=df['title']
+X=df['text']
 Y=df['label'].values
 
 ### Embedding
