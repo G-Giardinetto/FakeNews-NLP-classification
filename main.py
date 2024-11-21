@@ -13,26 +13,29 @@ from nltk.stem.snowball import SnowballStemmer
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from time import time
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
+from torch.amp import autocast
+import gc
 
+torch.cuda.empty_cache()
+gc.collect()
 
 
 start = time()
-DROP_ROWS=65000
+DROP_ROWS=50000
 
 path="WELFake_Dataset.csv"
-
-model_name = 'bert-base-uncased'
+choice=None
+model_name = 'albert-base-v2'
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-modello = AutoModelForSequenceClassification.from_pretrained(model_name)  # For  
+modello = AutoModel.from_pretrained(model_name)
 modello.eval()
 if torch.cuda.is_available():
     print("CUDA available")
 else:
     print("CUDA not available")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
+print("Device: {}".format(device))
 
 nltk.download('stopwords')
 stemmer = SnowballStemmer("english")
@@ -46,34 +49,31 @@ def stemm(string):
     stemmed_string = ' '.join(stemmed_string)
     return stemmed_string
 
-def create_windows(dataFrame, window_size, overlap):
-
-    finestre = []
-    wstart = 0
-    wend = window_size
-    while wend <= len(dataFrame):
-        window = dataFrame[wstart:wend]
-        finestre.append(window)
-        wstart += (window_size - overlap)
-        wend = wstart + window_size
-    return finestre
-
 def get_bert_embeddings(sentences):
-    encoded_inputs = tokenizer(sentences, padding='max_length', truncation=True, return_tensors='pt').to(device)
-    with torch.no_grad():
-        outputs = modello(**encoded_inputs)
-        embeddings = outputs.pooler_output
-    return embeddings.cpu().tolist()
+    modello.to(device)
+    embeddings_list = []
+    for sentenze in sentences:
+        encoded_inputs = tokenizer(sentenze, padding='max_length', truncation=True, return_tensors='pt').to(device)
+        with torch.no_grad():
+            with autocast(device_type='cuda'):
+                outputs = modello(**encoded_inputs, output_hidden_states=True )
+                embeddings = outputs.pooler_output
+                embeddings_list.append(embeddings.cpu().squeeze(0).tolist())
+    return embeddings_list
 
 
 
 
 
-
+preprotitles=os.path.exists("PreprocessedTitlesDELETED.csv")
+preprotexts=os.path.exists("PreprocessedTextsDELETED.csv")
 #######Data preprocessing
-if os.path.exists("Preprocessed.csv"):
+if preprotexts or preprotexts:
     print("Already exists preprocessed data. Loading.")
-    df = pd.read_csv("Preprocessed.csv")
+    if preprotitles:
+        df = pd.read_csv("PreprocessedTitlesDELETED.csv")
+    else:
+        df = pd.read_csv("PreprocessedTextsDELETED.csv")
 else:
     print("Preprocessed data does not exist yet.")
     if not os.path.exists(path):
@@ -104,17 +104,21 @@ else:
 
     ####### Stemming
     print("\nDo you want to delete the titles or texts? (1/2)")
-    if input() == '2':
+    if int(input()) == 2:
+        print("Deleting texts")
         df['title'] = df['title'].apply(stemm)
         df.drop(columns='text', inplace=True)
         choice="TextsDELETED"
+        print("\nDataframe's stemmed titles:")
+        print(df['title'].head(3))
     else:
+        print("Deleting titles")
         df['text'] = df['text'].apply(stemm)
         df.drop(columns='title', inplace=True)
         choice="TitlesDELETED"
+        print("\nDataframe's stemmed texts:")
+        print(df['texts'].head(3))
 
-    print("\nDataframe's stemmed titles:")
-    print(df['title'].head(3))
     df.to_csv("Preprocessed"+choice+".csv", index=False)
 
 ### Plot data
@@ -122,29 +126,40 @@ sn.countplot(x='label', hue='label',legend=False, data = df, palette= 'mako')
 plt.show()
 
 ## Data engineering
-X=df['text']
+if choice is not None:
+    if choice== "TitlesDELETED":
+        X=df['texts']
+    else:
+        X=df['title']
+else:
+    if preprotexts:
+        X=df['title']
+    else:
+        X=df['texts']
+
 Y=df['label'].values
 
 ### Embedding
-all_windows = []
-for sentence in X:
-    windows = create_windows(sentence.split(), 512, 256)
-    all_windows.extend(windows)
-all_windows_str = [' '.join(window) for window in all_windows]
+print("Generating embeddings...")
+X = get_bert_embeddings(X)
 
-X = get_bert_embeddings(all_windows_str)
-
-print("\nDataframe's embeddings titles:")
-
+#Trimming
+if len(X) != len(Y):
+    min_length = min(len(X), len(Y))
+    X= X[:min_length]
+    Y = Y[:min_length]
 
 ### SPLIT DATAFRAME
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
 
 ### REGRESSION
 lr = LogisticRegression()
+lr.max_iter = 6000
 
 lr.fit(X_train, Y_train)
 Y_pred = lr.predict(X_test)
+
+
 
 ### EVALUATING ACCURACY
 accuracy = accuracy_score(Y_pred, Y_test)
@@ -155,6 +170,12 @@ print(classification_report(Y_test,Y_pred))
 sn.heatmap(confusion_matrix(Y_test,Y_pred),annot = True, cmap = 'Greens',fmt = '.1f')
 plt.show()
 
+
+X_new_test="The president of the United States just declared war to Italy for enslaving the population of Iran"
+print("New test: {}".format(X_new_test))
+X_new_test = get_bert_embeddings([X_new_test])
+Y_new_pred = lr.predict(X_new_test)
+print(Y_new_pred)
 
 end = time()
 print("Elapsed time {}".format(end-start))
