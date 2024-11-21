@@ -23,6 +23,7 @@ gc.collect()
 
 start = time()
 DROP_ROWS=50000
+maxIter=6000
 
 path="WELFake_Dataset.csv"
 choice=None
@@ -129,18 +130,25 @@ plt.show()
 if choice is not None:
     if choice== "TitlesDELETED":
         X=df['texts']
+        print("Using texts")
     else:
         X=df['title']
+        print("Using titles")
 else:
     if preprotexts:
         X=df['title']
+        print("Using titles")
     else:
         X=df['texts']
+        print("Using texts")
 
 Y=df['label'].values
+print("Preprocessed data:\n")
+print(X.head(3)+"\n")
+
 
 ### Embedding
-print("Generating embeddings...")
+print("Generating embeddings using {}...".format(model_name))
 X = get_bert_embeddings(X)
 
 #Trimming
@@ -150,11 +158,14 @@ if len(X) != len(Y):
     Y = Y[:min_length]
 
 ### SPLIT DATAFRAME
+print("Random splitting data into training and testing...")
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
 
 ### REGRESSION
 lr = LogisticRegression()
-lr.max_iter = 6000
+lr.max_iter = maxIter
+print("Model name: Logistic Regression")
+print("Training with {} iterations...".format(maxIter))
 
 lr.fit(X_train, Y_train)
 Y_pred = lr.predict(X_test)
@@ -164,7 +175,7 @@ Y_pred = lr.predict(X_test)
 ### EVALUATING ACCURACY
 accuracy = accuracy_score(Y_pred, Y_test)
 
-print(classification_report(Y_test,Y_pred))
+print(classification_report(Y_test,Y_pred)+"\n")
 
 ### CONFUSION MATRIX
 sn.heatmap(confusion_matrix(Y_test,Y_pred),annot = True, cmap = 'Greens',fmt = '.1f')
@@ -175,7 +186,7 @@ X_new_test="The president of the United States just declared war to Italy for en
 print("New test: {}".format(X_new_test))
 X_new_test = get_bert_embeddings([X_new_test])
 Y_new_pred = lr.predict(X_new_test)
-print(Y_new_pred)
+print(Y_new_pred+"0: Fake, 1: True")
 
 end = time()
 print("Elapsed time {}".format(end-start))
