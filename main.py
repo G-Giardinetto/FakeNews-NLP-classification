@@ -70,10 +70,11 @@ preprotitles=os.path.exists("PreprocessedTitlesDELETED.csv")
 preprotexts=os.path.exists("PreprocessedTextsDELETED.csv")
 #######Data preprocessing
 if preprotexts or preprotexts:
-    print("Already exists preprocessed data. Loading.")
     if preprotitles:
+        print("Already exists preprocessed data. Loading texts...")
         df = pd.read_csv("PreprocessedTitlesDELETED.csv")
     else:
+        print("Already exists preprocessed data. Loading titles...")
         df = pd.read_csv("PreprocessedTextsDELETED.csv")
 else:
     print("Preprocessed data does not exist yet.")
