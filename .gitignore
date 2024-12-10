@@ -6,3 +6,6 @@
 /.idea
 *.iml
 PreprocessedTextsDELETED.csv
+.idea/FakeNews-NLP-classification.iml
+.idea/misc.xml
+.idea/vcs.xml

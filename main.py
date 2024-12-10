@@ -187,7 +187,7 @@ X_new_test="The president of the United States just declared war to Italy for en
 print("New test: {}".format(X_new_test))
 X_new_test = get_bert_embeddings([X_new_test])
 Y_new_pred = lr.predict(X_new_test)
-print(Y_new_pred+"0: Fake, 1: True")
+print(str(Y_new_pred)+"\t0: Fake, 1: True")
 
 end = time()
 print("Elapsed time {}".format(end-start))
